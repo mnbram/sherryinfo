@@ -1,9 +1,13 @@
 library(tidyverse)
-library(extrafont)
+library(shotext)
+# library(extrafont)
 library(stringi)
 
+font_add_google("Lato", "lato")
+showtext_auto()
+main_font <- "lato"
+
 colors <- read_csv("style/colors.csv")
-main_font <- "Lato"
 
 get_color <- function(col, s) {
   colors %>%
@@ -23,13 +27,13 @@ ggplot(exports, aes(Year)) +
   geom_ribbon(aes(ymin = 0, ymax = Liters), fill = export_color) +
   geom_line(aes(y = Liters), color = export_color) +
   scale_x_continuous(
-    breaks = seq(1830, 2010, by = 10),
+    breaks = seq(1830, 2020, by = 10),
     labels = function(x) ifelse(x %% 20 == 0, x, ""),
-    expand = c(0, 0)
+    expand = expansion(add = c(0, 4))
   ) +
   scale_y_continuous(
     limits = c(0, NA),
-    expand = expand_scale(mult = c(0, 0.01))
+    expand = expansion(mult = c(0, 0.01))
   ) +
   theme_minimal() +
   theme(
@@ -39,9 +43,7 @@ ggplot(exports, aes(Year)) +
     axis.text.x = element_text(
       family = main_font,
       color = export_color,
-      angle = -45,
-      vjust = 0.75,
-      hjust = 0,
+      hjust = 0.5,
       size = 10,
       face = "bold"
     ),
