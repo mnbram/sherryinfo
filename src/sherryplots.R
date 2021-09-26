@@ -47,10 +47,12 @@ ggplot(exports, aes(Year)) +
       size = 10,
       face = "bold"
     ),
-    axis.ticks.x = element_line(color = export_color, size = 1),
+    axis.ticks.x = element_line(color = export_color, size = 0.5),
     axis.ticks.length.x = unit(0.25, "lines"),
     plot.background = element_rect(fill = get_color(4, 1), size = NA)
   )
+
+ggsave("figs/time_series.svg", width = 5, height = 1.5, units = "in")
 
 # Varieties ---------------------------------------------------------------
 
