@@ -1,7 +1,7 @@
 library(tidyverse)
-library(shotext)
-# library(extrafont)
-library(stringi)
+library(showtext)
+library(gggibbous)
+library(svglite)
 
 font_add_google("Lato", "lato")
 showtext_auto()
@@ -54,20 +54,6 @@ ggplot(exports, aes(Year)) +
 
 # Varieties ---------------------------------------------------------------
 
-tidysherry <- read_csv("data/tidysherry.csv", col_types = "iccd")
-
-pct_by_year <- tidysherry %>%
-  group_by(Year, Variety) %>%
-  summarize(Liters = sum(Liters)) %>%
-  group_by(Year) %>%
-  mutate(Total = sum(Liters)) %>%
-  ungroup() %>%
-  mutate(pct = Liters / Total)
-
-ggplot(pct_by_year, aes(Year, Liters)) +
-  geom_line(aes(color = fct_reorder(Variety, Liters)))
-  
-
 categories <- tibble(
   Variety = c(
     "Manzanilla", "Fino", "Amontillado", "Palo Cortado", "Oloroso",
@@ -77,73 +63,78 @@ categories <- tibble(
   Category = c(rep("Dry", 5), rep("Sweet", 8))
 )
 
-cat_by_year <- pct_by_year %>%
+tidysherry <- read_csv("data/tidysherry.csv", col_types = "iccd") %>%
   inner_join(categories, by = "Variety") %>%
-  group_by(Year, Category) %>%
-  summarize(
-    Liters = sum(Liters),
-    pct = sum(pct)
-  )
-
-ggplot(cat_by_year, aes(Year, Liters, color = Category)) +
-  geom_line()
-
-pct_by_year %>%
-  filter(Variety == "Manzanilla") %>%
-  ggplot(aes(Year, pct)) +
-  geom_line() +
-  scale_y_continuous(limits = c(0, NA))
+  rename(Country_Detail = Country) %>%
+  mutate(Country = ifelse(
+    Country_Detail %in% c(
+      "Spain", "United Kingdom", "United States", "Netherlands", "Germany",
+      "Belgium", "France"),
+    Country_Detail, "Other"
+  ))
 
 tidysherry %>%
-  group_by(Year) %>%
-  summarize(Total = sum(Liters)) %>%
-  ggplot(aes(Year, Total)) +
-  geom_line() +
-  scale_y_continuous(limits = c(0, NA))
-
-tidysherry %>%
-  filter(Year == 2018) %>%
-  inner_join(categories, by = "Variety") %>%
+  filter(Year >= 2016) %>%
   group_by(Country, Category) %>%
-  summarize(Liters = sum(Liters)) %>%
-  group_by(Country) %>%
-  mutate(Total = sum(Liters)) %>%
-  ungroup() %>%
-  mutate(Percent = Liters / Total) %>%
-  ggplot(aes(Country, Percent)) +
-  geom_col(aes(fill = Category)) +
-  coord_flip()
-
-tidysherry %>%
-  filter(Year == 2020) %>%
-  inner_join(categories, by = "Variety") %>%
-  group_by(Country) %>%
-  mutate(Total = sum(Liters)) %>%
-  ungroup() %>%
+  summarize(Liters = sum(Liters) / 5) %>%
+  mutate(
+    Total = sum(Liters),
+    Country = fct_reorder(Country, Total)
+  ) %>%
   ggplot(aes(fct_reorder(Country, Total), Liters)) +
   geom_col(aes(fill = Category)) +
   coord_flip()
 
-tidysherry %>%
-  filter(Country != "Spain") %>%
-  inner_join(categories, by = "Variety") %>%
-  group_by(Year, Category) %>%
-  summarize(Liters = sum(Liters)) %>%
-  group_by(Year) %>%
-  mutate(Total = sum(Liters), Percent = Liters / Total) %>%
-  ungroup() %>%
-  ggplot(aes(Year, Percent, fill = Category)) +
-  geom_col()
+centers <- tibble(
+  Country = c("Spain", "United Kingdom", "Netherlands", "Germany",
+              "Belgium", "France", "United States", "Other"),
+  x = c(0, 2, 5, 7, 3.5, 2.5, -4, -3.5),
+  y = c(0, 12, 10, 8, 6, 4, 10, 0)
+)
 
-tidysherry %>%
-  inner_join(categories, by = "Variety") %>%
-  group_by(Year, Country) %>%
-  summarize(Total = sum(Liters)) %>%
-  ggplot(aes(Year, Total, color = Country)) +
-  geom_line()
+fiveyears <- tidysherry %>%
+  filter(Year >= 2016) %>%
+  group_by(Country, Category) %>%
+  summarize(Liters = sum(Liters) / 5, .groups = "drop") %>%
+  pivot_wider(names_from = Category, values_from = Liters) %>%
+  mutate(Total = Dry + Sweet) %>%
+  inner_join(centers, by = "Country") %>%
+  pivot_longer(
+    cols = c(Dry, Sweet),
+    names_to = "Category",
+    values_to = "Liters"
+  ) %>%
+  mutate(
+    pct = Liters / Total,
+    right = Category == "Sweet"
+  )
 
-tidysherry %>%
-  filter(Year == 2020) %>%
-  inner_join(categories, by = "Variety") %>%
-  group_by(Country)
-  
+ggplot(fiveyears, aes(x, y)) +
+  geom_moon(
+    aes(ratio = pct, fill = Category, color = Category, right = right,
+        size = Total),
+    key_glyph = draw_key_full_moon
+  ) +
+  geom_text(
+    data = filter(fiveyears, Category == "Dry"),
+    aes(y = y + sqrt(scales::rescale_max(Total, to = c(0, 40))) / 2 + 0.5,
+        label = Country),
+    family = main_font,
+    color = get_color(5, 1)
+  ) +
+  scale_fill_manual(values = c(get_color(2, 1), get_color(3, 1))) +
+  scale_color_manual(values = c(get_color(2, 1), get_color(3, 1))) +
+  scale_size_area(max_size = 40, guide = "none") +
+  scale_x_continuous(expand = c(0.1, 0)) +
+  scale_y_continuous(limits = c(-3, 16.5)) +
+  theme_void() +
+  theme(
+    legend.text = element_text(
+      family = main_font, size = 10, color = get_color(5, 1)),
+    legend.title = element_blank(),
+    legend.position = c(0.9, 0.1),
+    legend.justification = c(1, 0),
+    plot.background = element_rect(fill = get_color(4, 1), size = NA)
+  )
+
+ggsave("figs/countries.svg", width = 5, height = 3, units = "in")
